@@ -27,17 +27,19 @@ Para este análisis de datos, hemos decidido utilizar las siguientes técnicas:
 Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 
 ```{r}
-install.packages("dplyr")
-install.packages("plyr")
-install.packages("tidyr")
-install.packages("plotrix")
-install.packages("VIM")
+#install.packages("dplyr")
+#install.packages("plyr")
+#install.packages("tidyr")
+#install.packages("plotrix")
+#install.packages("VIM")
+#install.packages("DMwR")
 
 library(dplyr)
 library(plyr)
 library(tidyr)
 library(plotrix)
 library(VIM)
+library(DMwR)
 ```
 
 # Preprocesamiento de los datos
@@ -117,12 +119,13 @@ names(prepro)[13] <- "hours_per_week"
 names(prepro)[14] <- "native_country"
 ```
 
-Ahora, podemos eliminar el atributo education_num estableciendo un orden al atributo education:
+Ahora, podemos eliminar el atributo education_num estableciendo un orden al atributo education, y el atributo people_sample debido a que no proporciona información relevante para realizar la clasificación:
 
 ```{r}
 education_order <- c("Preschool", "1st-4th", "5th-6th", "7th-8th", "9th", "10th", "11th", "12th", "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors", "Masters", "Prof-school", "Doctorate")
 prepro$education <- factor(prepro$education, ordered = TRUE, levels = education_order)
 prepro$education_num <- NULL
+prepro$people_sample <- NULL
 ```
 
 De igual manera, podemos asignar el valor 0 a ganar menor o igual a 50K anuales, y el valor 1 para el caso contrario. También podemos convertir el resto de atributos tipo texto a variables categóricas:
@@ -150,19 +153,17 @@ colSums(is.na(prepro))
 prepro[prepro == "?"] <- NA
 colSums(is.na(prepro))
 ```
-
-```{r}
-head(prepro)
-```
+Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál de ellas nos da un mejor resultado. Primero, vamos a eliminar todas las filas que contengan algún valor perdido:
 
 ```{r}
 prepro_withoutNA <- prepro %>% drop_na()
 colSums(is.na(prepro_withoutNA))
 ```
+A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
 
 ```{r}
 #Dataset rellenando valores con Knn
-prepro_knn <-kNN(prepro, variable = colnames(prepro))
+prepro_knn <- kNN(prepro, variable = colnames(prepro))
 #prepro_knn <- subset(prepro_knn, select = -c(16:30))
 colSums(is.na(data))
 head(prepro_knn)
@@ -170,12 +171,12 @@ head(prepro_knn)
 
 ## Eliminación de casos raros / imposibles
 
-Algoritmo SMOTE o algún ensemble
-- Quitar filas con gente mayor a 70 años
+Anteriormente vimos que en ciertos aspectos el dataset tiene ejemplos un tanto desbalanceados, por ejemplo en la edad de las muestras, donde teníamos filas de edad media superior a los 90 años. Para lidiar con estos casos y otros que se nos puedan escapar, vamos a aplicar el algoritmo SMOTE:
 
-# División del dataset
-
-Usar alguna técnica que no sea el típico 70/30
+```{r}
+prepro <- SMOTE(moreThan50K ~ ., prepro, perc.over=100)
+dim(prepro)
+```
 
 # Redes Neuronales
 
@@ -186,7 +187,6 @@ Usar alguna técnica que no sea el típico 70/30
 Meter la normalización que hacía falta para redes neuronales
 
 ```{r}
-library(dplyr)
 prepro_neural <- prepro
 prepro_neural <- prepro_neural %>% mutate_if(is.numeric, scale)
 head(prepro_neural)
