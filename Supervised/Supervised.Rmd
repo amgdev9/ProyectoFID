@@ -1,17 +1,50 @@
 ---
-title: 'Tidyverse: los premios Nobel'
+title: 'Análisis Supervisado'
 output:
   html_document:
     df_print: paged
 ---
 
+# Fundamentos de Ingeniería de Datos - Análisis Supervisado
+
+*(2020) José Andrés Pérez, Andrés Martínez*
+
+# Introducción
+
+En este análisis supervisado de datos tenemos como objetivo usar un dataset (ver [1]) correspondiente a un censo de la población activa de EEUU, donde en cada fila del conjunto de datos tenemos disponible información como el género, situación familiar, situación fiscal, educación recibida...
+
+Como clase tenemos una variable categórica binaria que nos indica, para cada ejemplo (que comprende un grupo de personas con características comunes), si tiene unos ingresos brutos anuales superiores a los 50K dólares. En otras palabras, nos indica si ese grupo de personas ha alcanzado el éxito laboral y son capaces de vivir una vida económicamente cómoda.
+
+Por lo tanto, estamos ante un problema de clasificación binaria que pretendemos atacar usando 3 modelos distintos para, finalmente, realizar una comparativa entre ellos vislumbrando las fortalezas y debilidades de cada uno de ellos.
+
+Para este análisis de datos, hemos decidido utilizar las siguientes técnicas:
+- Redes Neuronales
+- Random Forest
+- Support Vector Machine
+
+# Paquetes utilizados
+
+Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
+
 ```{r}
+install.packages("dplyr")
+install.packages("plyr")
+install.packages("tidyr")
+install.packages("plotrix")
+install.packages("VIM")
+
 library(dplyr)
 library(plyr)
 library(tidyr)
 library(plotrix)
 library(VIM)
 ```
+
+# Preprocesamiento de los datos
+
+## Carga y primer vistazo
+
+Antes que nada, vamos a cargar el dataset con los datos a analizar y realizar un vistazo rápido de los mismos. Este primer paso puede ayudarnos a decidir la relevancia de las columnas y su significado.
 
 ```{r}
 data <- read.csv("https://raw.githubusercontent.com/amg98/ProyectoFID/master/Data/adult.csv")
@@ -20,6 +53,27 @@ dim(data)
 head(data)
 summary(data)
 ```
+
+Primero vamos a explicar cada atributo para tener clara su intención:
+- age: Edad media de los participantes de cada ejemplo
+- workclass: variable categórica que indica la clase trabajadora. Puede tener los siguientes valores: Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked
+- fnlwgt: según [2], se trata del número de personas que se cree que representa cada fila
+- education: variable categórica que indica el nivel educativo de cada muestra. Sus valores posibles son: Bachelors, Some-college, 11th, HS-grad, Prof-school, Assoc-acdm, Assoc-voc, 9th, 7th-8th, 12th, Masters, 1st-4th, 10th, Doctorate, 5th-6th, Preschool
+- education.num: asignación numérica al atributo education. Cuanto más alto sea este valor, mayor es el nivel educativo de la muestra
+- marital.status: estado civil de la muestra. Los valores posibles son: Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent, Married-AF-spouse
+- occupation: describe el sector laboral de la muestra. En este dataset existen estos posibles valores: Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm- clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces
+- relationship: indica la situación familiar de la muestra. Los valores posibles son: Wife, Own-child, Husband, Not-in-family, Other-relative, Unmarried
+- race: variable categórica que indica la raza de cada ejemplo. Se han encontrado los siguientes valores: White, Asian-Pac-Islander, Amer-Indian-Eskimo,Black, other
+- sex: género binario de la muestra. Contempla únicamente "Male" y "Female"
+- capital.gain: expectativa de aumento de ingresos anuales en el siguiente año
+- capital.loss: expectativa de pérdida de ingresos anuales en el siguiente año
+- hours.per.week: número de horas trabajadas por semana
+- native.country: indica el país de origen de la muestra
+- income: la clase del dataset. Indica 2 posibles valores: <=50K o >50K
+
+## Visualización de los datos
+
+Primero, realicemos un diagrama de sectores para ver la predominancia de cada valor de la clase:
 
 ```{r}
 income <- data %>% group_by(data$income) %>% tally()
@@ -32,20 +86,25 @@ pie3D(slices, labels = lbls, explode = 0.1,
 main = "Valores de la clase \"income\"")
 ```
 
-```{r}
-# Cuenta Premios 
-variable_auxiliar<-nobel %>% count()
+Vemos que tenemos un balance en los valores de la clase coherente para realizar el análisis. Es decir, no tenemos un valor de la clase que sea muy poco común de encontrar.
 
-# Muestra esa variable con un mensaje
-print(paste("Premios en total: ",variable_auxiliar))
-
-```
+Ahora, realicemos unos histogramas sobre varias columnas para observar el rango de valores de cada una de ellas:
 
 ```{r}
 hist(data$age)
 hist(data$fnlwgt)
 hist(data$education.num)
 ```
+
+Sobre estos histogramas podemos sacar varias conclusiones:
+- La edad media de las muestras tiene un pico en los 20, 30 y 40 años, y va disminuyendo hasta los 80/90. Quizás deberíamos eliminar las filas con edad mayor a los 70 años porque pueden corresponder a casos muy raros que poco tengan que aportar al estudio
+- Cada muestra tiene un censo variable que suele rondar las 100.000 personas, siendo muy infrecuente tener más de 500.000 personas en una muestra
+- El nivel educativo tiene un gran pico en el nivel 8 y 9, que corresponden a personas que se han quedado en el curso 12th (no han terminado la secundaria pero casi), y personas que han terminado la secundaria pero no han continuado sus estudios
+- Tenemos otro pico en el nivel 12 que corresponde a personas que han llegado a la universidad y han completado una carrera, pero no han continuado los estudios
+
+## Simplificación de atributos
+
+Comencemos renombrando los atributos para que sean más legibles:
 
 ```{r}
 prepro <- data
@@ -58,11 +117,15 @@ names(prepro)[13] <- "hours_per_week"
 names(prepro)[14] <- "native_country"
 ```
 
+Ahora, podemos eliminar el atributo education_num estableciendo un orden al atributo education:
+
 ```{r}
 education_order <- c("Preschool", "1st-4th", "5th-6th", "7th-8th", "9th", "10th", "11th", "12th", "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors", "Masters", "Prof-school", "Doctorate")
 prepro$education <- factor(prepro$education, ordered = TRUE, levels = education_order)
 prepro$education_num <- NULL
 ```
+
+De igual manera, podemos asignar el valor 0 a ganar menor o igual a 50K anuales, y el valor 1 para el caso contrario. También podemos convertir el resto de atributos tipo texto a variables categóricas:
 
 ```{r}
 prepro$moreThan50K <- mapvalues(prepro$income, from = c(">50K","<=50K"), to = c(1, 0))
@@ -77,6 +140,10 @@ prepro$sex <- as.factor(prepro$sex)
 prepro$native_country <- as.factor(prepro$native_country)
 head(prepro)
 ```
+
+## Tratamiento de los valores perdidos
+
+Ahora, veamos cuántos valores perdidos tenemos. Al observar el dataset detenidamente, se ha llegado a la conclusión de que los valores perdidos se identifican con una "?" en las variables tipo texto y categóricas. Por lo tanto, vamos a sustituirlos por valores NA:
 
 ```{r}
 colSums(is.na(prepro))
@@ -94,5 +161,72 @@ colSums(is.na(prepro_withoutNA))
 ```
 
 ```{r}
-
+#Dataset rellenando valores con Knn
+prepro_knn <-kNN(prepro, variable = colnames(prepro))
+#prepro_knn <- subset(prepro_knn, select = -c(16:30))
+colSums(is.na(data))
+head(prepro_knn)
 ```
+
+## Eliminación de casos raros / imposibles
+
+Algoritmo SMOTE o algún ensemble
+- Quitar filas con gente mayor a 70 años
+
+# División del dataset
+
+Usar alguna técnica que no sea el típico 70/30
+
+# Redes Neuronales
+
+## Introducción teórica
+
+## Preprocesamiento adicional
+
+Meter la normalización que hacía falta para redes neuronales
+
+```{r}
+library(dplyr)
+prepro_neural <- prepro
+prepro_neural <- prepro_neural %>% mutate_if(is.numeric, scale)
+head(prepro_neural)
+```
+
+## Entrenamiento del modelo
+
+## Validación del modelo
+
+### Cálculo de valores de bondad
+
+# Random Forest
+
+## Introducción teórica
+
+## Preprocesamiento adicional
+
+## Entrenamiento del modelo
+
+## Validación del modelo
+
+### Cálculo de valores de bondad
+
+# Support Vector Machine
+
+https://www.kaggle.com/ameyadalal/income-classification-with-svm-and-logistics
+
+## Introducción teórica
+
+## Entrenamiento del modelo
+
+## Validación del modelo
+
+### Cálculo de valores de bondad
+
+# Comparativa entre los modelos
+
+# Conclusiones
+
+# Bibliografía
+
+[1] Dataset: https://www.kaggle.com/uciml/adult-census-income
+[2] Parámetro fnlwgt: https://www.kaggle.com/uciml/adult-census-income/discussion/32698
