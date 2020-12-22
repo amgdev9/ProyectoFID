@@ -1,0 +1,98 @@
+---
+title: 'Tidyverse: los premios Nobel'
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(plotrix)
+library(VIM)
+```
+
+```{r}
+data <- read.csv("https://raw.githubusercontent.com/amg98/ProyectoFID/master/Data/adult.csv")
+
+dim(data)
+head(data)
+summary(data)
+```
+
+```{r}
+income <- data %>% group_by(data$income) %>% tally()
+```
+
+```{r}
+slices <- income[[2]]
+lbls <- income[[1]]
+pie3D(slices, labels = lbls, explode = 0.1,
+main = "Valores de la clase \"income\"")
+```
+
+```{r}
+# Cuenta Premios 
+variable_auxiliar<-nobel %>% count()
+
+# Muestra esa variable con un mensaje
+print(paste("Premios en total: ",variable_auxiliar))
+
+```
+
+```{r}
+hist(data$age)
+hist(data$fnlwgt)
+hist(data$education.num)
+```
+
+```{r}
+prepro <- data
+names(prepro)[3] <- "people_sample"
+names(prepro)[5] <- "education_num"
+names(prepro)[6] <- "marital_status"
+names(prepro)[11] <- "capital_gain"
+names(prepro)[12] <- "capital_loss"
+names(prepro)[13] <- "hours_per_week"
+names(prepro)[14] <- "native_country"
+```
+
+```{r}
+education_order <- c("Preschool", "1st-4th", "5th-6th", "7th-8th", "9th", "10th", "11th", "12th", "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors", "Masters", "Prof-school", "Doctorate")
+prepro$education <- factor(prepro$education, ordered = TRUE, levels = education_order)
+prepro$education_num <- NULL
+```
+
+```{r}
+prepro$moreThan50K <- mapvalues(prepro$income, from = c(">50K","<=50K"), to = c(1, 0))
+prepro$moreThan50K <- strtoi(prepro$moreThan50K)
+prepro$income <- NULL
+prepro$workclass <- as.factor(prepro$workclass)
+prepro$marital_status <- as.factor(prepro$marital_status)
+prepro$occupation <- as.factor(prepro$occupation)
+prepro$relationship <- as.factor(prepro$relationship)
+prepro$race <- as.factor(prepro$race)
+prepro$sex <- as.factor(prepro$sex)
+prepro$native_country <- as.factor(prepro$native_country)
+head(prepro)
+```
+
+```{r}
+colSums(is.na(prepro))
+prepro[prepro == "?"] <- NA
+colSums(is.na(prepro))
+```
+
+```{r}
+head(prepro)
+```
+
+```{r}
+prepro_withoutNA <- prepro %>% drop_na()
+colSums(is.na(prepro_withoutNA))
+```
+
+```{r}
+
+```
