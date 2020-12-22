@@ -1,0 +1,354 @@
+---
+title: 'Tidyverse: los premios Nobel'
+output:
+  html_document:
+    df_print: paged
+---
+
+Disponemos de un fichero donde se recoge la información de todos los ganadores de los [premios Nobel](https://es.wikipedia.org/wiki/Premio_Nobel). Treas una exploración inicial del fichero trataremos de responder a una serie de preguntas acerca de estos premios como, por ejemplo, qué país es el más premiado, la proporción de premios desde una perspectiva de género, la edad de los premiados, etc. 
+
+
+### Inicio:
+
+Vamos a trabajar con las librerías de **Tidyverse** para la manipulación de datos, **dplyr**, y para visualización, **ggplot2**. Cargue dichas librerías (y realice su instalación si no lo ha hecho previamente en el ordenador en que está trabajando). 
+
+
+```{r}
+
+# Librería dplyr
+#install.packages("dplyr")
+library(dplyr)
+
+# Librería ggplot2
+#install.packages("ggplot2")
+library(ggplot2)
+
+```
+
+
+En primer lugar debemos leer el fichero que tiene como nombre *nobel.csv*. 
+
+```{r}
+
+# Lectura cdel fichero:
+nobel <- read.csv("data/nobel.csv")
+
+# Un primer vistazo a los datos
+head(nobel)
+
+
+```
+
+Estudie con detenimiento el nombre de las columnas y entienda qué significa cada una. De esta forma podremos entender cómo es la información - los datos - del problema que estamos estudiando. 
+
+```{r}
+
+# Nombre de las columnas
+colnames(nobel)
+
+
+
+```
+
+Estudie la dimensión del *dataset*. 
+
+```{r}
+
+# Dimensión o tamaño de los datos
+dim(nobel)
+
+```
+
+
+### Exploración: 
+
+¿Cuántos premios se han concedido en total? 
+
+```{r}
+# Cuenta Premios 
+variable_auxiliar<-nobel %>% count()
+
+# Muestra esa variable con un mensaje
+print(paste("Premios en total: ",variable_auxiliar))
+
+```
+
+¿Y entre los años 1950 y 2000 ambos inclusive?
+
+```{r}
+
+# Premios entre 1950 y 2000
+nobel %>% 
+  count(1950<=year & year<=2000)
+
+# Otra opción sería: 469
+# nobel %>% filter(nobel$year>=1950 & nobel$year<=2000) %>% count
+```
+
+¿Cuántos hombres y cuantas mujeres han ganado un premio nobel?
+
+```{r}
+
+# Premios separados según género:
+nobel %>%
+  group_by(sex) %>% 
+  count()
+
+
+```
+
+Cuente el número de premios según países y ordene los datos según este valor obtenido. Realice la ordenación de manera descendente de tal forma que el país con más premios aparezca en primer lugar. 
+
+```{r}
+
+# Contamos por países: columna birth_country
+# [Nota: se ordena poniendo "desc(n)" dentro del verbo arrange, siendo n el valor que se cuenyta]
+nobel %>% 
+  group_by(nobel$birth_country) %>% 
+  count() %>%
+  arrange(desc(n))
+
+
+```
+
+Se puede observar claramente que el país con más premios Nobel es Estados Unidos con un total de 259 premios, seguido de Reino Unido en segundo lugar con 85 y en tercer lugar Alemania con 61. Centrémosno con EEUU. 
+
+### Premios de Estados Unidos: 
+
+¿Qué porcentaje de ganadores de EEUU hay en cada década? 
+
+```{r}
+
+# 1) Se añade una columna que indique si es o no de EEUU
+# 2) Se calculan las décadas
+# 3) Se agrupa por década y se calcula el porcentaje asociado a la columna creada
+# Ver el experimento para entender el paso 3
+
+porcentaje_ganadores_usa <- nobel %>%
+  # Añade una columna "ganadores_usa": valores logicos
+  mutate(ganadores_usa = (birth_country == "United States of America")) %>%
+  # Añade una columna con la década: pasa cada año a su década, p.e.: 1963->1960
+  mutate(decada = floor(year/10) *10 ) %>%
+  # Agrupamos por década
+  group_by(decada) %>%
+  # Realiza el cálculo: proporción de TRUE en ganadores_usa
+  # ..como hay NaN se incluye "na.rm = TRUE"
+  summarize(porcentaje = mean(ganadores_usa, na.rm = TRUE)*100.0)
+
+# 
+head(porcentaje_ganadores_usa)
+
+```
+
+Al programar se suelen hacer pruebas cuando no se entiende algo y de ahí viene esta cajita con un experimento pequeño. 
+
+```{r}
+
+# ---- Experimento para entender el código anterior
+
+v1<-c(TRUE,TRUE,TRUE,FALSE,TRUE,TRUE,TRUE,FALSE,FALSE,FALSE)
+mean(v1)
+
+v2<-c(TRUE,TRUE,TRUE,FALSE,TRUE,NaN,TRUE,FALSE,FALSE,NaN)
+mean(v2,na.rm = TRUE)
+
+# ----
+
+```
+
+Realizamos un dibujo con el porcentaje de ganadores de EEUU por década. 
+
+
+```{r}
+
+# En el eje X van las décadas y en el Y el porcentaje asociado. 
+porcentaje_ganadores_usa %>% 
+    ggplot(aes(x=decada,y=porcentaje)) +
+    geom_point() 
+
+# Tendríamos que averiguar cómo reescalar la gráfica para que Y vaya de 0 a 100
+
+```
+
+
+### Premios según una perspectiva de género: 
+
+¿Qué porcentaje de mujeres ha ganado un premio en cada década según cada categoría? (Los cálculos van a ser parecidos a los anteriores pero ahora se calculará según el género en lugar de ser o no de EEUU y, por otro lado, se separará por dos criterios: ser mujer y la categoría del premio).
+
+```{r}
+# Repetimos el razonamiento: vector de logicos, calculo de decada, agrupar por decada y calcular gracias al vector de logicos
+porcentaje_ganadores_mujeres <- nobel %>%
+  mutate(ganadores_mujeres = (sex=="Female")) %>%
+  mutate(decada = floor(year/10) *10) %>%
+  group_by(decada, category) %>%
+  summarise(porcentaje = mean(ganadores_mujeres,na.rm = TRUE)*100.0)
+
+#
+head(porcentaje_ganadores_mujeres)
+
+```
+
+
+Visualmente mediante una gráfica de tal manera que el color indique la categoría.
+
+```{r}
+
+# Vemos qué datos queremos representar
+# porcentaje_ganadores_mujeres
+
+# Representamos
+porcentaje_ganadores_mujeres %>% 
+  ggplot(aes(x=decada, y=porcentaje, color = category))+
+  geom_point()
+
+
+
+```
+
+### Algunas cuestiones en concreto:
+
+**¿Quién fue la primera mujer en ganar un premio Nobel?** ¿Y las cinco primeras?
+
+```{r}
+
+# Filtramos y usamos la función top_n: argumentos "5,desc(year)"
+aux <- nobel %>% 
+  # Filtra por sexo: ojo, si escribo "female" no lo reconoce
+  filter(sex=="Female") %>% 
+  # Obtiene los 5 primeros según orden descendente por año
+  top_n(5,desc(year))
+
+print(aux$full_name)
+
+# EL RESULTADO ES:
+# "Marie Curie, nÃ©e Sklodowska" 
+# "Baroness Bertha Sophie Felicita von Suttner  En 1905 se convirtió en la primera mujer distinguida con el Premio Nobel de la Paz y la segunda mujer laureada con un Nobel después de Marie Curie en 1903.3​
+# Selma Ottilia Lovisa Lager primera mujer en obtener un Premio Nobel de Literatura (1909). 
+# Grazia Deledda 1926 fue galardonada con el Premio Nobel de Literatura.
+```
+
+
+**¿Hay personas que hayan ganado más de un premio Nobel?** ¿Quiénes?
+
+```{r}
+
+# La primera idea es filtrar segun el numero de premios pero esa información no la tenemos. Por lo que cambiamos de idea y lo que hacemos es ver si hay nombres que se repitan varias veces.
+
+#
+nobel %>%
+  # Agrupamos según los nombres para ver quien tiene asociado n valore mayor que 1
+  group_by(full_name) %>%
+  count() %>%
+  # La n es el resultado del conteo
+  filter(n>1)
+
+# EL RESULTADO ES:
+#ComitÃ© international de la Croix Rouge (International Committee of the Red Cross)	3
+#Frederick Sanger	2
+#John Bardeen	2
+#Linus Carl Pauling	2
+#Marie Curie, nÃ©e Sklodowska	2
+#Office of the United Nations High Commissioner for Refugees (UNHCR)
+
+nobel %>%
+  # Agrupamos según los nombres para ver quien tiene asociado n valore mayor que 1
+  group_by(full_name) %>%
+  summarise(n=n(),
+            year = mean(year, na.rm = TRUE)) %>%
+  # La n es el resultado del conteo
+  filter(n>1)
+
+
+
+```
+
+**La edad media de los premiados**
+
+Veamos mediante una gráfica la edad media de los premiados. 
+
+
+```{r}
+
+# Al hacer la gráfrica vemos que no tenemos una variable edad. Modificamos el dataset para incluir una variable con esa información.
+
+# ----- Indicación: 
+# para calcular la edad a partir de la fecha de nacimiento se puede usar el paquete "lubridate" para el manejo de fechas. Tiene una función de nombre "year" que dada una fecha le extrae el año asociado. 
+library(lubridate) # No requiere instalación, sólo cargarlo. 
+
+# -----
+
+# Modifico el dataset para incluir una columna con la edad
+nobel_edad <- nobel %>% 
+  mutate(edad= year - year(nobel$birth_date))
+
+# X: el año, Y: la edad
+nobel_edad %>% 
+  ggplot(aes(x=year,y=edad))+
+  geom_point()+
+  # Esta opción crea una curva "que aproxima" (o regresión), la línea azul
+  geom_smooth()
+
+
+```
+
+
+Repetimos la misma gráfica pero separando según las categorias. 
+
+```{r}
+
+#
+nobel_edad %>% 
+  ggplot(aes(x=year,y=edad))+
+  geom_point()+
+  # Esta opción crea una curva "que aproxima" (o regresión), la línea azul
+  geom_smooth()+
+  # Icluye una "capa" para separar los dibujos por categoría
+  facet_wrap(~category) 
+
+# Cuando escribo suelo poner nobel$category - por usar el autocompletable - pero luego borro la parte de nobel$
+
+
+```
+
+
+**¿Quienes son el ganador de mayor edad y el de menor edad?**
+
+Veamos por un lado quien es el ganador de mayor edad y, por otro lado, quien es el más joven. 
+
+El de mayor edad:
+
+```{r}
+
+# En nobel no teníamos información sobre la edad pero en nobel_edad si
+mas_viejo<-nobel_edad %>%
+  top_n(1,edad)
+
+mas_viejo
+
+# La edad la puedo ver inspeccionando el resultado (que es un dataframe de una fila) o manejando dicho dataframe
+
+#class(mas_viejo) # Para comprobar que la variable es un datframe
+print(paste("Edad del más viejo: ", mas_viejo$edad))
+
+
+```
+
+El más joven:
+
+```{r}
+
+# De manera análoga
+mas_joven<-nobel_edad %>%
+  top_n(1,desc(edad))
+
+mas_joven
+
+#(mas_joven) # Para comprobar que la variable es un datframe
+print(paste("Edad del más joven: ", mas_joven$edad))
+
+```
+
+
+
+
+

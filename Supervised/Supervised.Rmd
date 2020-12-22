@@ -34,14 +34,16 @@ Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 #install.packages("VIM")
 #install.packages("DMwR")
 #install.packages("Amelia")
+#install.packages("ggplot2")
 
-library(dplyr)
 library(plyr)
+library(dplyr)
 library(tidyr)
 library(plotrix)
 library(VIM)
 library(DMwR)
 library(Amelia)
+library(ggplot2)
 ```
 
 # Preprocesamiento de los datos
@@ -51,7 +53,7 @@ library(Amelia)
 Antes que nada, vamos a cargar el dataset con los datos a analizar y realizar un vistazo rápido de los mismos. Este primer paso puede ayudarnos a decidir la relevancia de las columnas y su significado.
 
 ```{r}
-data <- read.csv("https://raw.githubusercontent.com/amg98/ProyectoFID/master/Data/adult.csv")
+data <- read.csv("../Data/adult.csv")
 
 dim(data)
 head(data)
@@ -81,9 +83,6 @@ Primero, realicemos un diagrama de sectores para ver la predominancia de cada va
 
 ```{r}
 income <- data %>% group_by(data$income) %>% tally()
-```
-
-```{r}
 slices <- income[[2]]
 lbls <- income[[1]]
 pie3D(slices, labels = lbls, explode = 0.1,
@@ -105,6 +104,51 @@ Sobre estos histogramas podemos sacar varias conclusiones:
 - Cada muestra tiene un censo variable que suele rondar las 100.000 personas, siendo muy infrecuente tener más de 500.000 personas en una muestra
 - El nivel educativo tiene un gran pico en el nivel 8 y 9, que corresponden a personas que se han quedado en el curso 12th (no han terminado la secundaria pero casi), y personas que han terminado la secundaria pero no han continuado sus estudios
 - Tenemos otro pico en el nivel 12 que corresponde a personas que han llegado a la universidad y han completado una carrera, pero no han continuado los estudios
+
+A continuación, vamos a desglosar el dataset por sector productivo y nivel educativo para ver el número de horas trabajadas:
+
+```{r}
+qplot(workclass, hours.per.week, data=data, geom="boxplot", fill=workclass)+
+  theme(plot.title=element_text(size=18),axis.text.x=element_text(angle=90,vjust=1))
+qplot(education, hours.per.week, data=data, geom="boxplot", fill=education)+
+  theme(plot.title=element_text(size=18),axis.text.x=element_text(angle=90,vjust=1))
+```
+Se ve que los autónomos son los que más horas trabajan a la semana, aunque también hay personas que no cobran y están siendo explotadas, trabajando casi 50 horas a la semana.
+
+En cuanto al nivel educativo, podemos intuir que las personas con un nivel educativo universitario en adelante (máster, doctorado, profesores...) tienden a trabajar más horas a la semana.
+
+Veamos si ese número extra de horas trabajadas tiene correlación con una mayor probabilidad de ganar 50K al año, mostrando esta información mediante diagramas de barras:
+
+```{r}
+bar1 <- data %>%
+    mutate(ricos = (income == ">50K")) %>%
+    group_by(workclass) %>%
+    summarize(porcentaje = mean(ricos, na.rm = TRUE) * 100.0)
+ggplot(data=bar1, aes(x=workclass, y=porcentaje)) + geom_bar(stat="identity")
+
+bar2 <- data %>%
+    mutate(ricos = (income == ">50K")) %>%
+    group_by(education) %>%
+    summarize(porcentaje = mean(ricos, na.rm = TRUE) * 100.0)
+ggplot(data=bar2, aes(x=education, y=porcentaje)) + geom_bar(stat="identity")
+```
+Y, como sería coherente, el sector autónomo tiene mayor posibilidad de ganar más de 50K al año debido a su mayor número de horas trabajadas semanales.
+
+Si nos fijamos en el diagrama de barras que clasifica por nivel educativo, aquellas personas que tienen estudios superiores a una carrera universitaria (máster y doctorado) y los profesores tienen mayor probabilidad de tener la vida resuelta. Qué suerte que nos encontramos en ese grupo.
+
+Para finalizar, vamos a analizar la edad en cuanto a conseguir el objetivo de ganar 50K al año:
+
+```{r}
+bar3 <- data %>% 
+  group_by(income, age) %>% 
+  tally() %>% 
+  complete(age, fill = list(n = 0)) %>% 
+  mutate(percentage = n / sum(n) * 100)
+ggplot(bar3, aes(age, percentage, fill = income)) + 
+  geom_bar(stat = 'identity', position = 'dodge') +
+  theme_bw()
+```
+Donde observamos que antes de los 25 años es bastante improbable conseguir tener esos ingresos anuales (por ejemplo puede deberse a la falta de experiencia), aunque a medida que pasan los años se incrementan sustancialmente las posibilidades, encontrando  un pico entre los 35-45 años, rango de edad donde aún no se es demasiado mayor y se tiene mucha experiencia adquirida.
 
 ## Simplificación de atributos
 
