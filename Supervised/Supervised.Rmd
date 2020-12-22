@@ -33,6 +33,7 @@ Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 #install.packages("plotrix")
 #install.packages("VIM")
 #install.packages("DMwR")
+#install.packages("Amelia")
 
 library(dplyr)
 library(plyr)
@@ -40,6 +41,7 @@ library(tidyr)
 library(plotrix)
 library(VIM)
 library(DMwR)
+library(Amelia)
 ```
 
 # Preprocesamiento de los datos
@@ -153,6 +155,18 @@ colSums(is.na(prepro))
 prepro[prepro == "?"] <- NA
 colSums(is.na(prepro))
 ```
+Observemos los valores perdidos realizando un gráfico para hacernos una idea de su distribución:
+
+```{r}
+fig <- function(w, h){
+     options(repr.plot.width = w, repr.plot.height = h)
+}
+
+fig(15,15)
+missmap(prepro, rank.order = FALSE, col = c(0,1), legend = FALSE)
+```
+Echando un vistazo al diagrama anterior, podemos concluir que los valores perdidos se concrentan principalmente en 3 columnas: workclass, occupation y native_country.
+
 Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál de ellas nos da un mejor resultado. Primero, vamos a eliminar todas las filas que contengan algún valor perdido:
 
 ```{r}
