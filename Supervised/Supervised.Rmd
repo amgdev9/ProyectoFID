@@ -35,6 +35,9 @@ Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 #install.packages("DMwR")
 #install.packages("Amelia")
 #install.packages("ggplot2")
+#install.packages("caTools")
+#install.packages("rpart")
+#install.packages("rpart.plot")
 
 library(plyr)
 library(dplyr)
@@ -44,6 +47,9 @@ library(VIM)
 library(DMwR)
 library(Amelia)
 library(ggplot2)
+library(caTools)
+library(rpart)
+library(rpart.plot)
 ```
 
 # Preprocesamiento de los datos
@@ -216,11 +222,13 @@ Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál
 ```{r}
 prepro_withoutNA <- prepro %>% drop_na()
 colSums(is.na(prepro_withoutNA))
+missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE)
 ```
 A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
 
 ```{r}
 #Dataset rellenando valores con Knn
+NOTA de Andres M: Actualizar el valor de "prepro" con el mejor resultado
 prepro_knn <- kNN(prepro, variable = colnames(prepro))
 #prepro_knn <- subset(prepro_knn, select = -c(16:30))
 colSums(is.na(data))
@@ -260,9 +268,15 @@ head(prepro_neural)
 
 ## Introducción teórica
 
-## Preprocesamiento adicional
-
 ## Entrenamiento del modelo
+
+```{r}
+df <- prepro
+set.seed(123)
+split <- sample.split(df, SplitRatio = 0.7)
+train <- subset(df, split == "TRUE")
+test <- subset(df, split == "FALSE")
+```
 
 ## Validación del modelo
 
