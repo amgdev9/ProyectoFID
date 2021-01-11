@@ -222,6 +222,7 @@ lbls <- income[[1]]
 pie3D(slices, labels = lbls, explode = 0.1, theta=1.2, shade=0.4,
 main = "Valores de la clase \"income\"")
 ```
+Como esperábamos, ahora el porcentaje de casos de cada clase es el mismo, consiguiendo un balance en el dataset.
 
 ## Tratamiento de los valores perdidos
 
@@ -260,8 +261,6 @@ prepro_knn <- kNN(prepro, variable = colnames(prepro))
 colSums(is.na(data))
 head(prepro_knn)
 ```
-
-Como esperábamos, ahora el porcentaje de casos de cada clase es el mismo, consiguiendo un balance en el dataset.
 
 # Redes Neuronales
 
