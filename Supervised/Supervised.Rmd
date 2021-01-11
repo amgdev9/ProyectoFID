@@ -7,7 +7,7 @@ output:
 
 # Fundamentos de Ingeniería de Datos - Análisis Supervisado
 
-*(2020) José Andrés Pérez, Andrés Martínez*
+*(2020-2021) José Andrés Pérez, Andrés Martínez*
 
 # Introducción
 
@@ -91,11 +91,11 @@ Primero, realicemos un diagrama de sectores para ver la predominancia de cada va
 income <- data %>% group_by(data$income) %>% tally()
 slices <- income[[2]]
 lbls <- income[[1]]
-pie3D(slices, labels = lbls, explode = 0.1,
+pie3D(slices, labels = lbls, explode = 0.1, theta=1.2, shade=0.4,
 main = "Valores de la clase \"income\"")
 ```
 
-Vemos que tenemos un balance en los valores de la clase coherente para realizar el análisis. Es decir, no tenemos un valor de la clase que sea muy poco común de encontrar.
+Vemos que alrededor del 75% de los casos pertenecen a la clase <= 50K, por lo que tenemos un dataset algo desbalanceado. En un apartado posterior, aplicaremos el algoritmo SMOTE para aumentar los casos de la clase minoritaria
 
 Ahora, realicemos unos histogramas sobre varias columnas para observar el rango de valores de cada una de ellas:
 
@@ -180,11 +180,10 @@ prepro$education_num <- NULL
 prepro$people_sample <- NULL
 ```
 
-De igual manera, podemos asignar el valor 0 a ganar menor o igual a 50K anuales, y el valor 1 para el caso contrario. También podemos convertir el resto de atributos tipo texto a variables categóricas:
+También podemos convertir el resto de atributos tipo texto a variables categóricas. Recordemos que la clase debe ser un factor para poder aplicar SMOTE:
 
 ```{r}
-prepro$moreThan50K <- mapvalues(prepro$income, from = c(">50K","<=50K"), to = c(1, 0))
-prepro$moreThan50K <- strtoi(prepro$moreThan50K)
+prepro$moreThan50K <- as.factor(prepro$income)
 prepro$income <- NULL
 prepro$workclass <- as.factor(prepro$workclass)
 prepro$marital_status <- as.factor(prepro$marital_status)
@@ -208,11 +207,7 @@ colSums(is.na(prepro))
 Observemos los valores perdidos realizando un gráfico para hacernos una idea de su distribución:
 
 ```{r}
-fig <- function(w, h){
-     options(repr.plot.width = w, repr.plot.height = h)
-}
-
-fig(15,15)
+options(repr.plot.width = 15, repr.plot.height = 15)
 missmap(prepro, rank.order = FALSE, col = c(0,1), legend = FALSE)
 ```
 Echando un vistazo al diagrama anterior, podemos concluir que los valores perdidos se concrentan principalmente en 3 columnas: workclass, occupation y native_country.
@@ -224,6 +219,7 @@ prepro_withoutNA <- prepro %>% drop_na()
 colSums(is.na(prepro_withoutNA))
 missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE)
 ```
+
 A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
 
 ```{r}
@@ -235,14 +231,26 @@ colSums(is.na(data))
 head(prepro_knn)
 ```
 
-## Eliminación de casos raros / imposibles
+## Tratamiento de dataset desbalanceado
 
-Anteriormente vimos que en ciertos aspectos el dataset tiene ejemplos un tanto desbalanceados, por ejemplo en la edad de las muestras, donde teníamos filas de edad media superior a los 90 años. Para lidiar con estos casos y otros que se nos puedan escapar, vamos a aplicar el algoritmo SMOTE:
+Anteriormente vimos que hay un porcentaje algo bajo de casos de la clase minoritaria (>50K), por lo que vamos a generar ejemplos de esa clase usando el algoritmo SMOTE:
 
 ```{r}
 prepro <- SMOTE(moreThan50K ~ ., prepro, perc.over=100)
 dim(prepro)
 ```
+
+Vamos a dibujar de nuevo el diagrama de sectores para observar los cambios.
+
+```{r}
+income <- prepro %>% group_by(prepro$moreThan50K) %>% tally()
+slices <- income[[2]]
+lbls <- income[[1]]
+pie3D(slices, labels = lbls, explode = 0.1, theta=1.2, shade=0.4,
+main = "Valores de la clase \"income\"")
+```
+
+Como esperábamos, ahora el porcentaje de casos de cada clase es el mismo, consiguiendo un balance en el dataset.
 
 # Redes Neuronales
 
