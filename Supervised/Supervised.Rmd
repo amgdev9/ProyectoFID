@@ -299,11 +299,9 @@ test <- subset(df, split == "FALSE")
 
 # Support Vector Machine
 
-https://www.kaggle.com/ameyadalal/income-classification-with-svm-and-logistics
-
 ## Introducción teórica
 
-## Entrenamiento del modelo
+## Entrenamiento, validación y cálculo de parámetros del modelo
 
 ```{r}
 set.seed(1234)
@@ -313,20 +311,60 @@ test = subset(prepro, sample == FALSE)
 ```
 
 ```{r}
-svmModel = svm(moreThan50K ~ ., data = train)
-summary(svmModel)
+kfold_k = 8
+folds = createFolds(train$moreThan50K, k = kfold_k)
+
+degreeValues = c(2, 3, 5, 8, 10)
+
+allParams <- list()
+i = 1
+
+for(degree in degreeValues) {
+  
+  cv = lapply(folds, function(x) {
+  
+    # Separación del conjunto train en k partes
+    training_fold = train[-x, ]
+    test_fold = train[x, ]
+    
+    # Entrenamiento en ese fold
+    svmModel = svm(formula = moreThan50K ~ .,
+                     data = training_fold,
+                     type = 'C-classification',
+                     kernel = 'polynomial',
+                     degree = degree)
+    
+    # Cálculo de accuracy
+    y_pred = predict(svmModel, newdata = test_fold, type="response")
+    cm = table(test_fold$moreThan50K, y_pred)
+    accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+    precision = recall = cm[1,1] / (cm[1,1] + cm[1,2])
+    recall = cm[1,1] / (cm[1,1] + cm[2,1])
+    specificity = cm[2,2] / (cm[2,2] + cm[1,2])
+    return(c(accuracy, precision, recall, specificity))
+  })
+  
+  # Cálculo de parámetros para ese K-fold
+  params = c(0, 0, 0, 0)
+
+  for (fold in cv) {
+    params = params + fold
+  }
+  
+  params = params / kfold_k
+  allParams[[i]] <- params
+  i <- i + 1
+}
 ```
 
-## Validación del modelo
-
 ```{r}
-test$prediction = predict(svmModel, newdata=test, type="response")
-```
 
-### Cálculo de valores de bondad
+cat("Accuracy: ", bestParams[1], "\n")
+cat("Precision: ", bestParams[2], "\n")
+cat("Recall: ", bestParams[3], "\n")
+cat("Specificity: ", bestParams[4], "\n")
+cat("Best degree: ", bestDegree, "\n")
 
-```{r}
-confusionMatrix(table(test$moreThan50K, test$prediction))
 ```
 
 # Comparativa entre los modelos
