@@ -41,6 +41,8 @@ Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 #install.packages("ISLR")
 #install.packages("e1071")
 #install.packages("caret")
+#install.packages("randomForest")
+#install.packages("pROC")
 
 library(plyr)
 library(dplyr)
@@ -56,6 +58,8 @@ library(rpart.plot)
 library(ISLR)
 library(e1071)
 library(caret)
+library(randomForest)
+library(pROC)
 ```
 
 # Preprocesamiento de los datos
@@ -286,16 +290,34 @@ head(prepro_neural)
 ## Entrenamiento del modelo
 
 ```{r}
+set.seed(1234)
 df <- prepro
-set.seed(123)
 split <- sample.split(df, SplitRatio = 0.7)
 train <- subset(df, split == "TRUE")
 test <- subset(df, split == "FALSE")
 ```
 
+```{r}
+rf <- randomForest(moreThan50K ~ ., data = train, importance=TRUE)
+```
+
 ## Validación del modelo
 
+```{r}
+rfPrediction = predict(rf, newdata=test, type="prob")
+rfPrediction = as.data.frame(rfPrediction)
+```
+
 ### Cálculo de valores de bondad
+
+```{r}
+rocData <- roc(test$moreThan50K, rfPrediction$`<=50K`)
+plot(rocData, cex = 2, main = "Random Forest: Curva ROC")
+```
+
+```{r}
+cat("Area under curve (AUC): ", auc(rocData))
+```
 
 # Support Vector Machine
 
