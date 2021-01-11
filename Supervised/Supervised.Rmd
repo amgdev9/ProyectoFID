@@ -38,6 +38,9 @@ Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 #install.packages("caTools")
 #install.packages("rpart")
 #install.packages("rpart.plot")
+#install.packages("ISLR")
+#install.packages("e1071")
+#install.packages("caret")
 
 library(plyr)
 library(dplyr)
@@ -50,6 +53,9 @@ library(ggplot2)
 library(caTools)
 library(rpart)
 library(rpart.plot)
+library(ISLR)
+library(e1071)
+library(caret)
 ```
 
 # Preprocesamiento de los datos
@@ -95,7 +101,7 @@ pie3D(slices, labels = lbls, explode = 0.1, theta=1.2, shade=0.4,
 main = "Valores de la clase \"income\"")
 ```
 
-Vemos que alrededor del 75% de los casos pertenecen a la clase <= 50K, por lo que tenemos un dataset algo desbalanceado. En un apartado posterior, aplicaremos el algoritmo SMOTE para aumentar los casos de la clase minoritaria
+Vemos que alrededor del 75% de los casos pertenecen a la clase <= 50K, por lo que tenemos un dataset algo desbalanceado. En un apartado posterior, aplicaremos el algoritmo SMOTE para aumentar los casos de la clase minoritaria.
 
 Ahora, realicemos unos histogramas sobre varias columnas para observar el rango de valores de cada una de ellas:
 
@@ -194,43 +200,6 @@ prepro$sex <- as.factor(prepro$sex)
 prepro$native_country <- as.factor(prepro$native_country)
 head(prepro)
 ```
-
-## Tratamiento de los valores perdidos
-
-Ahora, veamos cuántos valores perdidos tenemos. Al observar el dataset detenidamente, se ha llegado a la conclusión de que los valores perdidos se identifican con una "?" en las variables tipo texto y categóricas. Por lo tanto, vamos a sustituirlos por valores NA:
-
-```{r}
-colSums(is.na(prepro))
-prepro[prepro == "?"] <- NA
-colSums(is.na(prepro))
-```
-Observemos los valores perdidos realizando un gráfico para hacernos una idea de su distribución:
-
-```{r}
-options(repr.plot.width = 15, repr.plot.height = 15)
-missmap(prepro, rank.order = FALSE, col = c(0,1), legend = FALSE)
-```
-Echando un vistazo al diagrama anterior, podemos concluir que los valores perdidos se concrentan principalmente en 3 columnas: workclass, occupation y native_country.
-
-Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál de ellas nos da un mejor resultado. Primero, vamos a eliminar todas las filas que contengan algún valor perdido:
-
-```{r}
-prepro_withoutNA <- prepro %>% drop_na()
-colSums(is.na(prepro_withoutNA))
-missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE)
-```
-
-A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
-
-```{r}
-#Dataset rellenando valores con Knn
-NOTA de Andres M: Actualizar el valor de "prepro" con el mejor resultado
-prepro_knn <- kNN(prepro, variable = colnames(prepro))
-#prepro_knn <- subset(prepro_knn, select = -c(16:30))
-colSums(is.na(data))
-head(prepro_knn)
-```
-
 ## Tratamiento de dataset desbalanceado
 
 Anteriormente vimos que hay un porcentaje algo bajo de casos de la clase minoritaria (>50K), por lo que vamos a generar ejemplos de esa clase usando el algoritmo SMOTE:
@@ -248,6 +217,44 @@ slices <- income[[2]]
 lbls <- income[[1]]
 pie3D(slices, labels = lbls, explode = 0.1, theta=1.2, shade=0.4,
 main = "Valores de la clase \"income\"")
+```
+
+## Tratamiento de los valores perdidos
+
+Ahora, veamos cuántos valores perdidos tenemos. Al observar el dataset detenidamente, se ha llegado a la conclusión de que los valores perdidos se identifican con una "?" en las variables tipo texto y categóricas. Por lo tanto, vamos a sustituirlos por valores NA:
+
+```{r}
+colSums(is.na(prepro))
+prepro[prepro == "?"] <- NA
+colSums(is.na(prepro))
+```
+Observemos los valores perdidos realizando un gráfico para hacernos una idea de su distribución:
+
+```{r}
+options(repr.plot.width = 15, repr.plot.height = 15)
+missmap(prepro, rank.order = FALSE, col = c(0,1), legend = FALSE)
+```
+Echando un vistazo al diagrama anterior, podemos concluir que los valores perdidos se concrentan principalmente en 3 columnas: workclass, occupation, education y native_country.
+
+Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál de ellas nos da un mejor resultado. Primero, vamos a eliminar todas las filas que contengan algún valor perdido:
+
+```{r}
+prepro_withoutNA <- prepro %>% drop_na()
+colSums(is.na(prepro_withoutNA))
+missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE)
+prepro <- prepro_withoutNA
+```
+Vemos que los valores perdidos han desaparecido.
+
+A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
+
+```{r}
+#Dataset rellenando valores con Knn
+NOTA de Andres M: Actualizar el valor de "prepro" con el mejor resultado
+prepro_knn <- kNN(prepro, variable = colnames(prepro))
+#prepro_knn <- subset(prepro_knn, select = -c(16:30))
+colSums(is.na(data))
+head(prepro_knn)
 ```
 
 Como esperábamos, ahora el porcentaje de casos de cada clase es el mismo, consiguiendo un balance en el dataset.
@@ -298,9 +305,29 @@ https://www.kaggle.com/ameyadalal/income-classification-with-svm-and-logistics
 
 ## Entrenamiento del modelo
 
+```{r}
+set.seed(1234)
+sample <- sample.split(prepro$moreThan50K, SplitRatio = 0.70) 
+train = subset(prepro, sample == TRUE)
+test = subset(prepro, sample == FALSE)
+```
+
+```{r}
+svmModel = svm(moreThan50K ~ ., data = train)
+summary(svmModel)
+```
+
 ## Validación del modelo
 
+```{r}
+test$prediction = predict(svmModel, newdata=test, type="response")
+```
+
 ### Cálculo de valores de bondad
+
+```{r}
+confusionMatrix(table(test$moreThan50K, test$prediction))
+```
 
 # Comparativa entre los modelos
 
