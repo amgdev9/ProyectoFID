@@ -287,7 +287,15 @@ head(prepro_neural)
 
 ## Introducción teórica
 
+Un Random Forest es un ensemble que combina el uso de varios árboles de decisión como clasificador base, todo con el objetivo de obtener mejores resultados en nuestras predicciones.
+
+La manera en la que funciona es la siguiente: supongamos que tenemos 500 árboles de decisión en nuestro Random Forest, cada uno de estos árboles va a devolver como salida una predicción para un ejemplo dado. Para computar la decisión final, se realiza una votación, de manera que la predicción con más votos es la que se tomará como la predicción del Random Forest.
+
+La gracia de esto es que la manera en la que se forman los árboles de decisión que conforman nuestro Random Forest es distinta. Algunos de ellos tendrán en cuenta un subconjunto de atributos del dataset, y han sido entrenados con un subconjunto de las muestras totales. Esto no solo se realiza por temas de rendimiento en cuanto al tiempo de entrenamiento de estos árboles de decisión, sino que también para que no todos los árboles sean muy parecidos y tenga sentido plantearse realizar una votación por mayoría, evitando así el fenónemo de "overfitting". Esta manera de crear los árboles de decisión se conoce como "bootstraping".
+
 ## Entrenamiento del modelo
+
+Lo primero de todo, vamos a establecer la semilla del generador de números aleatorios para que los resultados no varíen entre sucesivas ejecuciones. Además, vamos a realizar una división del dataset en entrenamiento y validación, otorgando un 70% del mismo a entrenamiento del modelo.
 
 ```{r}
 set.seed(1234)
@@ -297,11 +305,22 @@ train <- subset(df, split == "TRUE")
 test <- subset(df, split == "FALSE")
 ```
 
+Una vez definida la división del dataset, vamos a crear el Random Forest, tomando como clase el atributo "moreThan50K". El parámetro importance=TRUE indica que tome solo en consideración los atributos que considere importantes.
+
 ```{r}
 rf <- randomForest(moreThan50K ~ ., data = train, importance=TRUE)
 ```
 
+Vamos a visualizar la importancia de las variables según el Random Forest que se nos ha generado:
+
+```{r}
+varImpPlot(rf, sort=TRUE)
+```
+Donde observamos que los atributos más importantes son el salario, la ocupación, el nivel educativo y la edad. Entre los atributos menos significativos, tenemos el género, la raza, el país de origen y el estado civil. En nuestro caso como no tenermos demasiados atributos los vamos a dejar, pero en casos donde el dataset tenga cientos de atributos es muy recomendable eliminar del Random Forest aquellos atributos que no sean considerados relevantes (sería una etapa en el análisis exploratorio de datos).
+
 ## Validación del modelo
+
+Ahora, vamos a guardar en un dataframe las predicciones devueltas por nuestro Random Forest usando el conjunto de test. Como vamos a realizar un análisis ROC más adelante, indicamos que queremos que devuelva no solo la clase predicha, sino también la probabilidad de que ese ejemplo pertenezca a esa clase.
 
 ```{r}
 rfPrediction = predict(rf, newdata=test, type="prob")
@@ -310,14 +329,22 @@ rfPrediction = as.data.frame(rfPrediction)
 
 ### Cálculo de valores de bondad
 
+Con estas predicciones, vamos a usar el paquete uROC para dibujar la curva ROC.
+
 ```{r}
 rocData <- roc(test$moreThan50K, rfPrediction$`<=50K`)
 plot(rocData, cex = 2, main = "Random Forest: Curva ROC")
 ```
+Como podemos observar, tiene muy buena pinta, porque la curva está localizada en la mitad superior de la recta y = x. De manera aproximada podemos ver que el área que deja bajo la curva es muy cercana a la unidad (la curva se comienza a parecer a un rectángulo aunque tiene el borde redondeado). Computemos el valor exacto del área bajo la curva (AUC)
 
 ```{r}
 cat("Area under curve (AUC): ", auc(rocData))
 ```
+Y vemos que es un valor muy cercano a la unidad, de forma que el Random Forest que hemos creado, aunque no hayamos tuneado los parámetros ni nada, ofrece unos resultados excelentes en las predicciones realizadas. Esta última tarea vamos a detallarla en el siguiente apartado para ver si podemos mejorar los resultados obtenidos.
+
+## Tuneado de parámetros
+
+TODO
 
 # Support Vector Machine
 
