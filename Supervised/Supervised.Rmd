@@ -301,7 +301,30 @@ test <- subset(df, split == "FALSE")
 
 ## Introducción teórica
 
-## Entrenamiento, validación y cálculo de parámetros del modelo
+Las máquinas de vector soporte son clasificadores usados principalmente para tareas de clasificación binaria, aunque se pueden extrapolar a otro tipo de clasificaciones. Al entrenar un modelo de este tipo frente a unos datos de entrenamiento, lo que obtenemos es un discriminante, que no es más que el vector normal al hiperplano que separa las 2 clases, así como otros atributos necesarios para realizar la clasificación, que es prácticamente inmediata, ya que dado un nuevo ejemplo, basta con calcular el signo de este ejemplo con respecto al hiperplano calculado.
+
+Por esa característica, la complejidad de este clasificador solo depende del número de filas del dataset, no del número de atributos que este contenga. En nuestro caso, con un dataset de dimensión 13, nos viene de perlas usar un clasificador así puesto que tendremos un incremento de velocidad con respecto a otros.
+
+En el entrenamiento del modelo, para encontrar el hiperplano que separa a las 2 clases es necesario resolver un problema de optimización cuadrático, que tiene una complejidad espacial (el número de dimensiones del dataset) de O(N^2) y complejidad temporal (el número de filas del dataset) de O(N^3).
+
+En ese problema de optimización, no sólo obtenemos el hiperplano, sino un margen "m" que trataremos que sea máximo para que el modelo sea lo más general posible. Este margen es la distancia del hiperplano a la primera instancia de los datos de entrenamiento.
+
+En la terminología de este modelo, al hiperplano de separación se le conoce como máquina de vectores soporte y a las instancias que quedan dentro de los márgenes o en ellos se les llama vectores soporte.
+
+![Imagen SVM](https://lh3.googleusercontent.com/proxy/Ckkbd5hQ3ZkE8Hs0I8oCggx_IoMOqpUkyXJH1FozSWSS6womo7N4bxdvIsTZ2bxLViiev4r5cRE3FhWNh81RsnNNOKtNxWCEUJHw0lEWSRuk_QmSayf3ZIU)
+
+Como estamos tratando con hiperplanos, nuestro modelo es lineal, pero claro, nuestro problema puede no serlo. Para solucionar este problema usamos lo que se conoce como un "kernel", que no es más que una transformación no lineal que aplicamos a nuestro problema (nuestro dataset) para que sea linealmente separable, es decir, que podamos realizar la clasificación usando un hiperplano.
+
+Existen varios kernels que podemos utilizar: polinomiales, radiales, lineales, sigmoides, gaussianos, cuadráticos inversos...
+
+Al realizar esto nuestro nuevo problema linealmente separable tendra dimensiones mayores al problema original pero, como comentamos al principio, esto nos da igual porque la complejidad del modelo viene definida solamente por el número de filas del dataset, no del número de dimensiones (atributos).
+
+![Imagen SVM Kernels](https://miro.medium.com/max/838/1*gXvhD4IomaC9Jb37tzDUVg.png)
+En esta imagen, podemos observar cómo aplicando un kernel polinomial cuadrático transformamos un problema en 2 dimensiones a uno de 3 dimensiones, pero ahora linealmente separable.
+
+## Tuneado básico de parámetros
+
+Comencemos creando un split del dataset en 2 partes: entrenamiento y validación. Usaremos el 70% del dataset para entrenamiento y el 30% restante para validación. Además, estableceremos la semilla desde el principio para que la salida del análisis sea la misma siempre.
 
 ```{r}
 set.seed(1234)
@@ -310,62 +333,110 @@ train = subset(prepro, sample == TRUE)
 test = subset(prepro, sample == FALSE)
 ```
 
+Ahora vamos a seleccionar entre un conjunto de valores de gamma cuál es el que nos da mejores resultados (un mejor valor de accuracy para nuestro modelo), para posteriormente usar ese valor en el entrenamiento usando K-fold, un método mucho más sofisticado que un split 70/30.
+
+```{r}
+
+gammaValues = c(0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 10, 100)
+
+accuracies = list()
+i = 1
+
+for(gamma in gammaValues) {
+  
+  # Entrenamiento
+  svmModel = svm(formula = moreThan50K ~ .,
+                     data = train,
+                     type = 'C-classification',
+                     kernel = 'radial',
+                     gamma = gamma)
+  
+  # Validación
+  y_pred = predict(svmModel, newdata = test, type="response")
+  
+  # Cálculo de parámetros de bondad
+  cm = table(test$moreThan50K, y_pred)
+  accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+  
+  accuracies[[i]] = accuracy;
+  i = i + 1
+}
+
+accuracies <- unlist(accuracies)
+
+```
+
+Ahora que tenemos las medidas de "accuracy" correspondiente a cada valor de gamma, veamos cuál de esos valores nos da un mejor resultado
+
+```{r}
+
+ggplot(data.frame(gammaValues, accuracies), aes(x=gammaValues, y=accuracies)) + geom_point() + geom_line()
+
+```
+
+```{r}
+
+bestAccIndex = which.max(accuracies)
+bestGamma = gammaValues[bestAccIndex]
+cat("Best gamma: ", bestGamma, "\n")
+cat("Best accuracy: ", accuracies[[bestAccIndex]], "\n")
+
+```
+Observamos que el valor de gamma = 0.2 nos da el mejor resultado, con un 84% de accuracy. Entonces, usaremos ese valor para realizar el entrenamiento del modelo.
+
+## Entrenamiento y validación del modelo
+
+Como se comentó antes, vamos a usar K-Fold Cross Validation para realizar el entrenamiento, de manera que los resultados de valores de bondad sean lo más independientes posibles del split de entrenamiento y validación que usemos. En este caso, hemos usado k = 8 como un valor razonable en tiempos de cómputo y fiabilidad de los resultados. Además, para demostrar conocimiento en el tema, se ha programado desde 0 el método K-Fold CV. La máquina de vector soporte usada tiene un kernel radial.
+
 ```{r}
 kfold_k = 8
 folds = createFolds(train$moreThan50K, k = kfold_k)
-
-degreeValues = c(2, 3, 5, 8, 10)
-
-allParams <- list()
-i = 1
-
-for(degree in degreeValues) {
   
-  cv = lapply(folds, function(x) {
+cv = lapply(folds, function(x) {
   
-    # Separación del conjunto train en k partes
-    training_fold = train[-x, ]
-    test_fold = train[x, ]
+  # Separación del conjunto train en k partes
+  training_fold = train[-x, ]
+  test_fold = train[x, ]
     
-    # Entrenamiento en ese fold
-    svmModel = svm(formula = moreThan50K ~ .,
-                     data = training_fold,
-                     type = 'C-classification',
-                     kernel = 'polynomial',
-                     degree = degree)
-    
-    # Cálculo de accuracy
-    y_pred = predict(svmModel, newdata = test_fold, type="response")
-    cm = table(test_fold$moreThan50K, y_pred)
-    accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
-    precision = recall = cm[1,1] / (cm[1,1] + cm[1,2])
-    recall = cm[1,1] / (cm[1,1] + cm[2,1])
-    specificity = cm[2,2] / (cm[2,2] + cm[1,2])
-    return(c(accuracy, precision, recall, specificity))
-  })
+  # Entrenamiento en ese fold
+  svmModel = svm(formula = moreThan50K ~ .,
+                 data = training_fold,
+                 type = 'C-classification',
+                 kernel = 'radial',
+                 gamma = bestGamma)
   
-  # Cálculo de parámetros para ese K-fold
-  params = c(0, 0, 0, 0)
+  # Cálculo de parámetros de bondad
+  y_pred = predict(svmModel, newdata = test_fold, type="response")
+  cm = table(test_fold$moreThan50K, y_pred)
+  accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+  precision = recall = cm[1,1] / (cm[1,1] + cm[1,2])
+  recall = cm[1,1] / (cm[1,1] + cm[2,1])
+  specificity = cm[2,2] / (cm[2,2] + cm[1,2])
+  return(c(accuracy, precision, recall, specificity))
+})
+  
+# Cálculo de parámetros
+params = c(0, 0, 0, 0)
 
-  for (fold in cv) {
-    params = params + fold
-  }
-  
-  params = params / kfold_k
-  allParams[[i]] <- params
-  i <- i + 1
+for (fold in cv) {
+  params = params + fold
 }
+  
+params = params / kfold_k
+
 ```
+
+Una vez entrenado el modelo, validado y calculados los parámetros, podemos visualizarlos. En este caso, no tiene sentido mostrar la matriz de confusión puesto que en cada fold obtenemos una matriz de confusión diferente. Los parámetros de bondad son simplemente las medias de los parámetros de bondad de cada fold. Además, como la clasificación solo devuelve la predicción de la clase y no la probabilidad, no podemos realizar un análisis ROC en este caso.
 
 ```{r}
 
-cat("Accuracy: ", bestParams[1], "\n")
-cat("Precision: ", bestParams[2], "\n")
-cat("Recall: ", bestParams[3], "\n")
-cat("Specificity: ", bestParams[4], "\n")
-cat("Best degree: ", bestDegree, "\n")
+cat("Accuracy: ", params[1], "\n")
+cat("Precision: ", params[2], "\n")
+cat("Recall: ", params[3], "\n")
+cat("Specificity: ", params[4], "\n")
 
 ```
+Vemos que el accuracy es del 83% y una precisión del 87%, resultados que son bastante buenos teniendo en cuenta la velocidad de predicción que tiene este clasificador.
 
 # Comparativa entre los modelos
 
@@ -375,3 +446,5 @@ cat("Best degree: ", bestDegree, "\n")
 
 [1] Dataset: https://www.kaggle.com/uciml/adult-census-income
 [2] Parámetro fnlwgt: https://www.kaggle.com/uciml/adult-census-income/discussion/32698
+[3] Imagen máquina de vector soporte: http://numerentur.org/svm/
+[4] Imagen kernels de máquina vector soporte: https://medium.com/analytics-vidhya/how-to-classify-non-linear-data-to-linear-data-bb2df1a6b781
