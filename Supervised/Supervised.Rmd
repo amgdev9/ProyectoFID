@@ -27,22 +27,27 @@ Para este análisis de datos, hemos decidido utilizar las siguientes técnicas:
 Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 
 ```{r}
-#install.packages("dplyr")
-#install.packages("plyr")
-#install.packages("tidyr")
-#install.packages("plotrix")
-#install.packages("VIM")
-#install.packages("DMwR")
-#install.packages("Amelia")
-#install.packages("ggplot2")
-#install.packages("caTools")
-#install.packages("rpart")
-#install.packages("rpart.plot")
-#install.packages("ISLR")
-#install.packages("e1071")
-#install.packages("caret")
-#install.packages("randomForest")
-#install.packages("pROC")
+install.packages("dplyr")
+install.packages("plyr")
+install.packages("tidyr")
+install.packages("plotrix")
+install.packages("VIM")
+install.packages("DMwR")
+install.packages("Amelia")
+install.packages("ggplot2")
+install.packages("caTools")
+install.packages("rpart")
+install.packages("rpart.plot")
+install.packages("ISLR")
+install.packages("e1071")
+install.packages("caret")
+install.packages("randomForest")
+install.packages("pROC")
+install.packages("keras")
+install.packages("mice")
+install.packages("fastDummies")
+#https://datascienceplus.com/imputing-missing-data-with-r-mice-package/
+
 
 library(plyr)
 library(dplyr)
@@ -60,6 +65,9 @@ library(e1071)
 library(caret)
 library(randomForest)
 library(pROC)
+library(keras)
+library(mice)
+library(fastDummies)
 ```
 
 # Preprocesamiento de los datos
@@ -209,7 +217,7 @@ head(prepro)
 Anteriormente vimos que hay un porcentaje algo bajo de casos de la clase minoritaria (>50K), por lo que vamos a generar ejemplos de esa clase usando el algoritmo SMOTE:
 
 ```{r}
-prepro <- SMOTE(moreThan50K ~ ., prepro, perc.over=100)
+prepro <- SMOTE(moreThan50K ~ .,prepro, perc.over=100)
 dim(prepro)
 ```
 
@@ -247,35 +255,54 @@ Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál
 prepro_withoutNA <- prepro %>% drop_na()
 colSums(is.na(prepro_withoutNA))
 missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE)
-prepro <- prepro_withoutNA
 ```
 Vemos que los valores perdidos han desaparecido.
 
 A continuación, vamos a usar el algoritmo KNN para, en vez de eliminar las filas directamente, sustituir los valores perdidos por la media del valor de los k vecinos más cercanos:
 
 ```{r}
-#Dataset rellenando valores con Knn
-NOTA de Andres M: Actualizar el valor de "prepro" con el mejor resultado
-prepro_knn <- kNN(prepro, variable = colnames(prepro))
-#prepro_knn <- subset(prepro_knn, select = -c(16:30))
-colSums(is.na(data))
+#prepro_knn <- VIM::kNN(prepro, variable = c( 'workclass','education','occupation','native_country'))
+#prepro_knn<- subset(prepro_knn, select = -c(14:26))
+#save(prepro_knn, file = "prepro_knn.Rdata")
+load(file = 'prepro_knn.Rdata')
+colSums(is.na(prepro_knn))
 head(prepro_knn)
+
+```
+Con el paquete mice simplificamos el imputar los MV con algoritmos más complejos y potentes que la media o la mediana, en este caso usaremos el método Predictive Mean Matching prpuesto por Donald B. Rubin el 86. Su objetivo es reducir la bias añadiendo sólo valores reales tomados de otras muestras completas similares. Es costoso computacionalmente pero nos sirve tanto para variables categoricas como númericas al igual que el knn.
+```{r}
+#tempData <- mice(prepro,m=5,maxit=30,meth='pmm',seed=500)
+#prepro_mice <- complete(tempData,1)
+#(prepro_mice, file = "prepro_mice.Rdata")
+load(file = 'prepro_mice.Rdata')
+colSums(is.na(prepro_mice))
+head(prepro_mice)
 ```
 
 # Redes Neuronales
 
 ## Introducción teórica
+https://www.xeridia.com/blog/redes-neuronales-artificiales-que-son-y-como-se-entrenan-parte-i
+El concepto tras las redes neuronales no es complejo, pues se trata de un simple paralelismo respecto a su contexto biológico. Trata de imitar el funcionamiento de las redes neuronales de los organismos vivos: un conjunto de neuronas conectadas entre sí y que trabajan en conjunto, sin que haya una tarea concreta para cada una. Con la experiencia, las neuronas van creando y reforzando ciertas conexiones para "aprender" algo que se queda fijo en el tejido.
+
+El ámbito teórico es mucho más complejo pero lo resumiremos hablando de su unidad mínima, el perceptrónel cuál recibe valores a los que aplica funciones de transformaciónque se irán ajustando según el algoritmo de retropropagación para así obetener salidas cada vez más cercanas a la esperada hasta resolver el problema propuesto. Varios perceptrones o neuronas se organizan en capas, cuantas más capas más compleja es nuestra red, no confundir con eficiente. De modo que para entrenar nuestra red la dotamos de ejemplos 'resueltos' train, que validaremos con los ejemplos de test para así ir ajustando los parámetros de las funciones de salida de cada una de las neuronas.
 
 ## Preprocesamiento adicional
-
-Meter la normalización que hacía falta para redes neuronales
+La normalización de los datos de entrada es el proceso por el se normalizan todos los datos de entrada, es decir, se reducen a los rangos [0,1] o [-1,1]. Si no se realiza la normalización los datos de entrada tendrán un efecto adicional sobre la neurona, dando lugar a decisiones incorrectas
 
 ```{r}
-prepro_neural <- prepro
-prepro_neural <- prepro_neural %>% mutate_if(is.numeric, scale)
-head(prepro_neural)
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x)))
+}
+prepro_knn_nor <- prepro_knn %>% mutate_if(is.numeric, normalize)
+prepro_mice_nor <- prepro_mice %>% mutate_if(is.numeric, normalize)
+prepro_withoutNA_nor <- prepro_withoutNA %>% mutate_if(is.numeric, normalize)
 ```
 
+```{r}
+prepro_knn_nor_d <- fastDummies::dummy_cols(prepro_knn_nor, select_columns = c("workclass","education","marital_status","occupation","relationship","race","sex","native_country","moreThan50K") )
+```
+En este caso probaremos como se comporta el modelo con los tres métodos anteoriormente expuestos para tratar los valores perdidos.
 ## Entrenamiento del modelo
 
 ## Validación del modelo
