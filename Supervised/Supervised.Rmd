@@ -27,25 +27,25 @@ Para este análisis de datos, hemos decidido utilizar las siguientes técnicas:
 Primero, vamos a instalar los paquetes utilizados para este análisis de datos:
 
 ```{r}
-install.packages("dplyr")
-install.packages("plyr")
-install.packages("tidyr")
-install.packages("plotrix")
-install.packages("VIM")
-install.packages("DMwR")
-install.packages("Amelia")
-install.packages("ggplot2")
-install.packages("caTools")
-install.packages("rpart")
-install.packages("rpart.plot")
-install.packages("ISLR")
-install.packages("e1071")
-install.packages("caret")
-install.packages("randomForest")
-install.packages("pROC")
-install.packages("keras")
-install.packages("mice")
-install.packages("fastDummies")
+#install.packages("dplyr")
+#install.packages("plyr")
+#install.packages("tidyr")
+#install.packages("plotrix")
+#install.packages("VIM")
+#install.packages("DMwR")
+#install.packages("Amelia")
+#install.packages("ggplot2")
+#install.packages("caTools")
+#install.packages("rpart")
+#install.packages("rpart.plot")
+#install.packages("ISLR")
+#install.packages("e1071")
+#install.packages("caret")
+#install.packages("randomForest")
+#install.packages("pROC")
+#install.packages("keras")
+#install.packages("mice")
+#install.packages("fastDummies")
 #https://datascienceplus.com/imputing-missing-data-with-r-mice-package/
 
 
@@ -256,7 +256,7 @@ Para eliminar los valores perdidos, vamos a aplicar varias técnicas y ver cuál
 ```{r}
 prepro_withoutNA <- prepro %>% drop_na()
 colSums(is.na(prepro_withoutNA))
-#missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE) # bug with visualization package
+missmap(prepro_withoutNA, rank.order = FALSE, col = c(0,1), legend = FALSE) # visual bug with visualization package
 ```
 Vemos que los valores perdidos han desaparecido.
 
@@ -317,7 +317,7 @@ prepro_mice_nor_d <- subset( prepro_mice_nor_d, select = -c(workclass,education,
 prepro_withoutNA_nor_d <- subset( prepro_withoutNA_nor_d, select = -c(workclass,education,marital_status,occupation,relationship,race,sex,native_country,moreThan50K,`moreThan50K_<=50K`,`occupation_?`,`workclass_?`,`native_country_?`) )
 ```
 
-Por problemas de configuración en las depencias del paquete keras y tensor instaladas en la máquina local  hemos decidido realizar estos pasos en google [collab]collab(https://colab.research.google.com/drive/1kD7DqRHyqfN45XrK2V03_POWMkzn6azS#scrollTo=CTAHnzFcmwfx)
+Por problemas de configuración en las dependencias del paquete keras y tensor instaladas en la máquina local  hemos decidido realizar estos pasos en google [collab]collab(https://colab.research.google.com/drive/1kD7DqRHyqfN45XrK2V03_POWMkzn6azS#scrollTo=CTAHnzFcmwfx)
 
 ```{r}
 write.csv(prepro_knn_nor_d,"prepro_knn_nor_d.csv", row.names = TRUE)
@@ -325,12 +325,12 @@ write.csv(prepro_mice_nor_d,"prepro_mice_nor_d.csv", row.names = TRUE)
 write.csv(prepro_knn_nor_d,"prepro_withoutNA_nor_d.csv", row.names = TRUE)
 ```
 
-Los resultados distan de lo esperado ya que el dataset que podría parecer menos completo a priori consigue los mejores resultados. Aunque estas diferencias no son signifacativas es curiosos como el tratamiento de missing values debe hacerse de manera conciencuda. En este caso creemos que las muestras con missing values eran erróneas desde un principio, por tanto lo mejor ha sido eliminarlas. Al imputar valores con knn o pmm hemos sufrido un coste computacional muy grande para simplemente completar muestras que desde un princpio no eran adecuadas para el entrenamiento de nuestro modelo pues se alejaban de la realidad.
+Los resultados distan de lo esperado ya que el dataset que podría parecer menos completo a priori consigue los mejores resultados. Aunque estas diferencias no son signifacativas es curiosos como el tratamiento de missing values debe hacerse de manera concienzuda. En este caso creemos que las muestras con missing values eran erróneas desde un principio, por tanto lo mejor ha sido eliminarlas. Al imputar valores con knn o pmm hemos sufrido un coste computacional muy grande para simplemente completar muestras que desde un principio no eran adecuadas para el entrenamiento de nuestro modelo pues se alejaban de la realidad.
 Como lección aprendida anotamos que el proceso de visualización de los datos pese a parecer simple, es crucial y puede ahorrar mucho trabajo que queremos solucionar con complejos algoritmos.
 
 ### Accuracy
 
-![Imagen SVM Kernels](./results.png)
+![Resultados Redes Neuronales](./results.png)
 
 # Random Forest
 
@@ -390,6 +390,47 @@ Como podemos observar, tiene muy buena pinta, porque la curva está localizada e
 cat("Area under curve (AUC): ", auc(rocData))
 ```
 Vemos que es un valor muy cercano a la unidad lo cuál es positivo.
+
+Por último, vamos a calcular el parámetro "accuracy" obteniendo un Random Forest por cada dataset preprocesado, de forma que más adelante podamos compararlos con el resto de técnicas:
+
+Primero veamos con el borrado de filas con valores perdidos:
+
+```{r}
+set.seed(1234)
+df <- prepro_withoutNA
+split <- sample.split(df, SplitRatio = 0.7)
+train <- subset(df, split == "TRUE")
+test <- subset(df, split == "FALSE")
+rf <- randomForest(moreThan50K ~ ., data = train, importance=TRUE)
+rfPrediction = predict(rf, newdata=test, type="class")
+confusionMatrix(table(test$moreThan50K, rfPrediction))
+```
+
+Ahora observemos el resultado con el algoritmo KNN:
+
+```{r}
+set.seed(1234)
+df <- prepro_knn
+split <- sample.split(df, SplitRatio = 0.7)
+train <- subset(df, split == "TRUE")
+test <- subset(df, split == "FALSE")
+rf <- randomForest(moreThan50K ~ ., data = train, importance=TRUE)
+rfPrediction = predict(rf, newdata=test, type="class")
+confusionMatrix(table(test$moreThan50K, rfPrediction))
+```
+
+Por último, tenemos el algoritmo mice:
+
+```{r}
+set.seed(1234)
+df <- prepro_mice
+split <- sample.split(df, SplitRatio = 0.7)
+train <- subset(df, split == "TRUE")
+test <- subset(df, split == "FALSE")
+rf <- randomForest(moreThan50K ~ ., data = train, importance=TRUE)
+rfPrediction = predict(rf, newdata=test, type="class")
+confusionMatrix(table(test$moreThan50K, rfPrediction))
+```
 
 # Support Vector Machine
 
@@ -532,9 +573,76 @@ cat("Specificity: ", params[4], "\n")
 ```
 Vemos que el accuracy es del 83% y una precisión del 87%, resultados que son bastante buenos teniendo en cuenta la velocidad de predicción que tiene este clasificador.
 
+Para finalizar, hagamos con una separación training-test de 70/30 y calculemos el parámetro "accuracy" para cada preprocesamiento del dataset. Con eso podremos comparar los algoritmos en el siguiente apartado.
+
+Primero, quitando las filas con valores perdidos:
+
+```{r}
+set.seed(1234)
+df <- prepro_withoutNA
+sample <- sample.split(df$moreThan50K, SplitRatio = 0.70) 
+train = subset(df, sample == TRUE)
+test = subset(df, sample == FALSE)
+svmModel = svm(formula = moreThan50K ~ .,
+                 data = train,
+                 type = 'C-classification',
+                 kernel = 'radial',
+                 gamma = bestGamma)
+y_pred = predict(svmModel, newdata = test, type="response")
+cm = table(test$moreThan50K, y_pred)
+accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+accuracy
+```
+
+Segundo, usando el algoritmo KNN:
+
+```{r}
+set.seed(1234)
+df <- prepro_knn
+sample <- sample.split(df$moreThan50K, SplitRatio = 0.70) 
+train = subset(df, sample == TRUE)
+test = subset(df, sample == FALSE)
+svmModel = svm(formula = moreThan50K ~ .,
+                 data = train,
+                 type = 'C-classification',
+                 kernel = 'radial',
+                 gamma = bestGamma)
+y_pred = predict(svmModel, newdata = test, type="response")
+cm = table(test$moreThan50K, y_pred)
+accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+accuracy
+```
+
+Por último, usando el algoritmo mice:
+
+```{r}
+set.seed(1234)
+df <- prepro_mice
+sample <- sample.split(df$moreThan50K, SplitRatio = 0.70) 
+train = subset(df, sample == TRUE)
+test = subset(df, sample == FALSE)
+svmModel = svm(formula = moreThan50K ~ .,
+                 data = train,
+                 type = 'C-classification',
+                 kernel = 'radial',
+                 gamma = bestGamma)
+y_pred = predict(svmModel, newdata = test, type="response")
+cm = table(test$moreThan50K, y_pred)
+accuracy = (cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[1,2] + cm[2,1])
+accuracy
+```
+
 # Comparativa entre los modelos
 
+En la siguiente tabla podemos observar los valores de accuracy para cada técnica utilizada y por cada preprocesamiento de valores perdidos realizado:
+
+![Comparativa final](./comparativa.png)
+
 # Conclusiones
+
+En conclusión, como el mejor resultado ha sido Random Forest con KNN para los valores perdidos, esto puede ser debido a que el KNN da mejores resultados cuando mayor y más variado sea el número de muestras. Además, el Random Forest es un ensemble, por lo que se espera obtener mejores resultados que con un clasificador normal.
+
+En definitiva, hemos aprendido a realizar un proceso de análisis de datos completo, con un análisis exploratorio de datos, preprocesamiento y aplicando diversas técnicas de clasificación binaria con varios tipos de validaciones para, al final, sacar un modelo con unos buenos parámetros de bondad.
 
 # Bibliografía
 
